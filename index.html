@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<!-- Previous head and style sections remain exactly the same -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timezone Converter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.43/moment-timezone-with-data.min.js"></script>
+    <!-- All previous styles remain exactly the same -->
+    <style>
+        /* All previous styles remain exactly the same */
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        .container {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .result {
+            margin: 1rem 0;
+            padding: 0.75rem;
+            background: white;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+        .result.highlighted {
+            border: 1px solid #4a90e2;
+            background: #f8fbff;
+        }
+        .time {
+            font-size: 1.25rem;
+            color: #6c757d;
+        }
+        .time.highlighted {
+            font-size: 1.75rem;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .label {
+            color: #6c757d;
+            font-size: 0.875rem;
+            margin-bottom: 0.25rem;
+        }
+        .label.highlighted {
+            color: #4a90e2;
+            font-weight: 500;
+        }
+        .autocomplete {
+            position: relative;
+            margin-top: 0.75rem;
+        }
+        .autocomplete-input {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 1rem;
+        }
+        .autocomplete-input:focus {
+            outline: none;
+            border-color: #4a90e2;
+            box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.1);
+        }
+        .autocomplete-list {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .autocomplete-item {
+            padding: 0.5rem;
+            cursor: pointer;
+        }
+        .autocomplete-item:hover {
+            background: #f8f9fa;
+        }
+        .autocomplete-item.selected {
+            background: #e9ecef;
+        }
+        .autocomplete-input:focus + .autocomplete-list {
+            display: block;
+        }
+        .autocomplete-list:hover {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="result">
+            <div class="label">Original Time:</div>
+            <div id="originalTime" class="time">-</div>
+        </div>
+        <div class="result highlighted">
+            <div class="label highlighted">Converted Time:</div>
+            <div id="convertedTime" class="time highlighted">-</div>
+        </div>
+        <div class="autocomplete">
+            <input type="text" id="timezoneSearch" class="autocomplete-input" placeholder="Search timezones...">
+            <div id="timezoneList" class="autocomplete-list"></div>
+        </div>
+    </div>
+
+    <script>
+        // All previous functions remain the same until updateTimes()
+        function getUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            const timestamp = params.get('timestamp');
+            const timezone = params.get('timezone');
+            return { timestamp, timezone };
+        }
+
+        let selectedTimezone = moment.tz.guess();
+        const timezones = moment.tz.names();
+        let selectedIndex = -1;
+
+        function initializeAutocomplete() {
+            const input = document.getElementById('timezoneSearch');
+            const list = document.getElementById('timezoneList');
+
+            input.value = `${selectedTimezone} (Local)`;
+
+            input.addEventListener('focus', (e) => {
+                e.target.select();
+            });
+
+            input.addEventListener('input', updateAutocomplete);
+            input.addEventListener('keydown', handleKeyDown);
+            
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.autocomplete')) {
+                    list.style.display = 'none';
+                }
+            });
+        }
+
+        function updateAutocomplete() {
+            const input = document.getElementById('timezoneSearch');
+            const list = document.getElementById('timezoneList');
+            const filter = input.value.toLowerCase();
+            
+            selectedIndex = -1;
+            
+            const filtered = timezones.filter(tz => 
+                tz.toLowerCase().includes(filter)
+            );
+
+            list.innerHTML = '';
+            
+            filtered.forEach((tz, index) => {
+                const div = document.createElement('div');
+                div.textContent = tz;
+                div.className = 'autocomplete-item';
+                div.addEventListener('click', () => selectTimezone(tz));
+                list.appendChild(div);
+            });
+
+            list.style.display = filtered.length > 0 ? 'block' : 'none';
+        }
+
+        function handleKeyDown(e) {
+            const list = document.getElementById('timezoneList');
+            const items = list.getElementsByClassName('autocomplete-item');
+            
+            if (items.length === 0) return;
+
+            if (selectedIndex >= 0 && items[selectedIndex]) {
+                items[selectedIndex].classList.remove('selected');
+            }
+
+            switch(e.key) {
+                case 'ArrowDown':
+                    selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                    e.preventDefault();
+                    break;
+                case 'ArrowUp':
+                    selectedIndex = Math.max(selectedIndex - 1, 0);
+                    e.preventDefault();
+                    break;
+                case 'Enter':
+                    if (selectedIndex >= 0) {
+                        selectTimezone(items[selectedIndex].textContent);
+                        list.style.display = 'none';
+                    }
+                    e.preventDefault();
+                    break;
+                case 'Escape':
+                    list.style.display = 'none';
+                    e.preventDefault();
+                    break;
+            }
+
+            if (selectedIndex >= 0 && items[selectedIndex]) {
+                items[selectedIndex].classList.add('selected');
+                items[selectedIndex].scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        function selectTimezone(tz) {
+            const input = document.getElementById('timezoneSearch');
+            selectedTimezone = tz;
+            input.value = tz;
+            updateTimes();
+        }
+
+        // Updated updateTimes() function with 12-hour time format
+        function updateTimes() {
+            const { timestamp, timezone } = getUrlParams();
+            if (!timestamp || !timezone) {
+                document.getElementById('originalTime').textContent = 'Invalid URL parameters';
+                return;
+            }
+
+            // Parse original time - now accepting both 24hr and 12hr input formats
+            const originalMoment = moment.tz(timestamp, ['YYYY/MM/DD HH:mm', 'YYYY/MM/DD hh:mm a'], timezone);
+            if (!originalMoment.isValid()) {
+                document.getElementById('originalTime').textContent = 'Invalid timestamp format';
+                return;
+            }
+
+            // Display original time in 12-hour format with AM/PM
+            document.getElementById('originalTime').textContent = 
+                `${originalMoment.format('YYYY MMM DD h:mm A')} ${timezone}`;
+
+            // Convert to selected timezone in 12-hour format with AM/PM
+            const convertedTime = originalMoment.tz(selectedTimezone);
+            document.getElementById('convertedTime').textContent = 
+                `${convertedTime.format('YYYY MMM DD h:mm A')} ${selectedTimezone}`;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeAutocomplete();
+            updateTimes();
+        });
+    </script>
+</body>
+</html>
