@@ -5,8 +5,41 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Timezone Converter</title>
+
+    <!-- Add Open Graph Metadata -->
+    <meta property="og:title" content="Timezone Converter" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="" /> <!-- Will be set dynamically -->
+    <meta property="og:description" content="Convert and share time across different timezones" />
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.43/moment-timezone-with-data.min.js"></script>
+
+    <!-- Add this script to update OG URL dynamically -->
+    <script>
+        // Update OG URL meta tag with current URL
+        document.addEventListener('DOMContentLoaded', () => {
+            const ogUrlMeta = document.querySelector('meta[property="og:url"]');
+            if (ogUrlMeta) {
+                ogUrlMeta.setAttribute('content', window.location.href);
+            }
+
+            // Update OG description if there's a timestamp
+            const { timestamp, timezone } = getUrlParams();
+            if (timestamp && timezone) {
+                const originalMoment = moment.tz(timestamp, ['YYYY/MM/DD HH:mm', 'YYYY/MM/DD hh:mm a'], timezone);
+                if (originalMoment.isValid()) {
+                    const ogDescMeta = document.querySelector('meta[property="og:description"]');
+                    if (ogDescMeta) {
+                        const formattedTime = originalMoment.format('YYYY/MMM/DD h:mm A');
+                        ogDescMeta.setAttribute('content', 
+                            `Convert ${formattedTime} ${timezone} to your timezone`);
+                    }
+                }
+            }
+        });
+    </script>
+
     <!-- All previous styles remain exactly the same -->
     <style>
         /* All previous styles remain exactly the same */
@@ -94,36 +127,204 @@
             background: #e9ecef;
         }
         .autocomplete-input:focus + .autocomplete-list {
-            display: block;
+            display: none;
         }
         .autocomplete-list:hover {
             display: block;
+        }
+        .popup-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .popup {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .popup h3 {
+            margin-top: 0;
+            margin-bottom: 1rem;
+        }
+
+        .popup-field {
+            margin-bottom: 1rem;
+            position: relative;
+        }
+
+        .popup-field label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #4a5568;
+        }
+
+        .popup-field input {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+
+        .button {
+            background: #4a90e2;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .button:hover {
+            background: #357abd;
+        }
+
+        .popup-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .url-result {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            background: #f8f9fa;
+            border-radius: 4px;
+            word-break: break-all;
+        }
+
+        .copy-button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 0.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            margin-left: 0.5rem;
+        }
+
+        .copy-button:hover {
+            background: #218838;
+        }
+
+        .url-container {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .url-text {
+            flex: 1;
+            overflow-wrap: break-word;
+        }
+
+        .instructions {
+            text-align: center;
+            padding: 2rem 1rem;
+            color: #4a5568;
+        }
+        
+        .instructions .button {
+            margin-top: 1rem;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        /* Ensure popup timezone list appears above other elements */
+        #popupTimezoneList {
+            z-index: 1100;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="result">
-            <div class="label">Original Time:</div>
-            <div id="originalTime" class="time">-</div>
+        <div id="instructions" class="instructions hidden">
+            <h2>Welcome to Timezone Converter</h2>
+            <p>Create a shareable timezone conversion link by clicking the button below</p>
+            <button id="createShareLinkInstruction" class="button">Create Share Link</button>
         </div>
-        <div class="result highlighted">
-            <div class="label highlighted">Converted Time:</div>
-            <div id="convertedTime" class="time highlighted">-</div>
+        
+        <div id="converterContent">
+            <div class="result">
+                <div class="label">Original Time:</div>
+                <div id="originalTime" class="time">-</div>
+            </div>
+            <div class="result highlighted">
+                <div class="label highlighted">Converted Time:</div>
+                <div id="convertedTime" class="time highlighted">-</div>
+                <div class="autocomplete" style="margin-top: 1rem;">
+                    <label class="label highlighted" style="display: block;">Change Timezone:</label>
+                    <input type="text" id="timezoneSearch" class="autocomplete-input" placeholder="Search timezones...">
+                    <div id="timezoneList" class="autocomplete-list"></div>
+                </div>
+            </div>
+            <div style="margin-top: 1.5rem;">
+                <button id="createShareLink" class="button">Create Share Link</button>
+            </div>
         </div>
-        <div class="autocomplete">
-            <input type="text" id="timezoneSearch" class="autocomplete-input" placeholder="Search timezones...">
-            <div id="timezoneList" class="autocomplete-list"></div>
+
+        <!-- Moved popup overlay outside of converterContent -->
+        <div id="popupOverlay" class="popup-overlay">
+            <div class="popup">
+                <h3>Create Shareable Time Link</h3>
+                <div class="popup-field">
+                    <label for="dateInput">Date:</label>
+                    <input type="date" id="dateInput">
+                </div>
+                <div class="popup-field">
+                    <label for="timeInput">Time:</label>
+                    <input type="time" id="timeInput">
+                </div>
+                <div class="popup-field">
+                    <label for="popupTimezone">Timezone:</label>
+                    <input type="text" id="popupTimezone" class="autocomplete-input" placeholder="Search timezones...">
+                    <div id="popupTimezoneList" class="autocomplete-list"></div>
+                </div>
+                <div class="popup-field">
+                    <div id="shareUrl" class="url-result" style="display: none;">
+                        <div class="url-container">
+                            <div class="url-text"></div>
+                            <button class="copy-button">Copy</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="popup-buttons">
+                    <button id="closePopup" class="button" style="background: #6c757d;">Close</button>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
-        // All previous functions remain the same until updateTimes()
+        // Add this function back before formatTimezoneWithOffset
         function getUrlParams() {
             const params = new URLSearchParams(window.location.search);
             const timestamp = params.get('timestamp');
             const timezone = params.get('timezone');
             return { timestamp, timezone };
+        }
+
+        // Then the formatTimezoneWithOffset function and rest of the code...
+        function formatTimezoneWithOffset(tz) {
+            const offset = moment.tz(tz).format('Z');
+            const shortOffset = offset.replace(':00', '');
+            return `${tz} (UTC${shortOffset})`;
         }
 
         let selectedTimezone = moment.tz.guess();
@@ -134,7 +335,7 @@
             const input = document.getElementById('timezoneSearch');
             const list = document.getElementById('timezoneList');
 
-            input.value = `${selectedTimezone} (Local)`;
+            input.value = formatTimezoneWithOffset(selectedTimezone) + ' (Local)';
 
             input.addEventListener('focus', (e) => {
                 e.target.select();
@@ -158,15 +359,16 @@
             selectedIndex = -1;
             
             const filtered = timezones.filter(tz => 
-                tz.toLowerCase().includes(filter)
+                formatTimezoneWithOffset(tz).toLowerCase().includes(filter)
             );
 
             list.innerHTML = '';
             
             filtered.forEach((tz, index) => {
                 const div = document.createElement('div');
-                div.textContent = tz;
+                div.textContent = formatTimezoneWithOffset(tz);
                 div.className = 'autocomplete-item';
+                div.dataset.timezone = tz; // Store original timezone name
                 div.addEventListener('click', () => selectTimezone(tz));
                 list.appendChild(div);
             });
@@ -195,7 +397,7 @@
                     break;
                 case 'Enter':
                     if (selectedIndex >= 0) {
-                        selectTimezone(items[selectedIndex].textContent);
+                        selectTimezone(items[selectedIndex].dataset.timezone);
                         list.style.display = 'none';
                     }
                     e.preventDefault();
@@ -215,17 +417,26 @@
         function selectTimezone(tz) {
             const input = document.getElementById('timezoneSearch');
             selectedTimezone = tz;
-            input.value = tz;
+            input.value = formatTimezoneWithOffset(tz);
             updateTimes();
         }
 
         // Updated updateTimes() function with 12-hour time format
         function updateTimes() {
             const { timestamp, timezone } = getUrlParams();
+            const instructions = document.getElementById('instructions');
+            const converterContent = document.getElementById('converterContent');
+            
             if (!timestamp || !timezone) {
-                document.getElementById('originalTime').textContent = 'Invalid URL parameters';
+                // Show instructions and hide converter content
+                instructions.classList.remove('hidden');
+                converterContent.classList.add('hidden');
                 return;
             }
+
+            // Hide instructions and show converter content
+            instructions.classList.add('hidden');
+            converterContent.classList.remove('hidden');
 
             // Parse original time - now accepting both 24hr and 12hr input formats
             const originalMoment = moment.tz(timestamp, ['YYYY/MM/DD HH:mm', 'YYYY/MM/DD hh:mm a'], timezone);
@@ -234,19 +445,181 @@
                 return;
             }
 
-            // Display original time in 12-hour format with AM/PM
+            // Display original time with UTC offset using new date format
             document.getElementById('originalTime').textContent = 
-                `${originalMoment.format('YYYY MMM DD h:mm A')} ${timezone}`;
+                `${originalMoment.format('YYYY/MMM/DD h:mm A')} ${formatTimezoneWithOffset(timezone)}`;
 
-            // Convert to selected timezone in 12-hour format with AM/PM
+            // Convert to selected timezone with UTC offset using new date format
             const convertedTime = originalMoment.tz(selectedTimezone);
             document.getElementById('convertedTime').textContent = 
-                `${convertedTime.format('YYYY MMM DD h:mm A')} ${selectedTimezone}`;
+                `${convertedTime.format('YYYY/MMM/DD h:mm A')} ${formatTimezoneWithOffset(selectedTimezone)}`;
         }
 
+        function setupPopup() {
+            const overlay = document.getElementById('popupOverlay');
+            const createButton = document.getElementById('createShareLink');
+            const closeButton = document.getElementById('closePopup');
+            const popupTimezoneInput = document.getElementById('popupTimezone');
+            const popupTimezoneList = document.getElementById('popupTimezoneList');
+            const dateInput = document.getElementById('dateInput');
+            const timeInput = document.getElementById('timeInput');
+            const shareUrl = document.getElementById('shareUrl');
+            
+            let popupSelectedTimezone = moment.tz.guess();
+            popupTimezoneInput.value = formatTimezoneWithOffset(popupSelectedTimezone);
+
+            // Function to update URL
+            function updateShareableUrl() {
+                const date = dateInput.value;
+                const time = timeInput.value;
+                const timezone = popupSelectedTimezone;
+
+                if (!date || !time) {
+                    shareUrl.style.display = 'none';
+                    return;
+                }
+
+                // Convert the date to the desired format YYYY/MMM/DD
+                const formattedDate = moment(date).format('YYYY/MMM/DD');
+                const timestamp = `${formattedDate} ${time}`;
+                const baseUrl = window.location.href.split('?')[0];
+                const url = `${baseUrl}?timestamp=${encodeURIComponent(timestamp)}&timezone=${encodeURIComponent(timezone)}`;
+                
+                const urlText = shareUrl.querySelector('.url-text');
+                urlText.textContent = url;
+                shareUrl.style.display = 'block';
+            }
+
+            // Add event listeners for automatic URL updates
+            dateInput.addEventListener('input', updateShareableUrl);
+            timeInput.addEventListener('input', updateShareableUrl);
+
+            function showPopup() {
+                overlay.style.display = 'flex';
+                // Set current date and time as default
+                const now = new Date();
+                dateInput.value = now.toISOString().split('T')[0];
+                timeInput.value = now.toTimeString().slice(0,5);
+                updateShareableUrl(); // Generate URL immediately
+            }
+
+            createButton.addEventListener('click', showPopup);
+            const createButtonInstruction = document.getElementById('createShareLinkInstruction');
+            createButtonInstruction.addEventListener('click', showPopup);
+            
+            closeButton.addEventListener('click', () => {
+                overlay.style.display = 'none';
+                shareUrl.style.display = 'none';
+            });
+
+            // Setup copy button
+            const copyButton = shareUrl.querySelector('.copy-button');
+            copyButton.addEventListener('click', async () => {
+                const urlText = shareUrl.querySelector('.url-text').textContent;
+                try {
+                    await navigator.clipboard.writeText(urlText);
+                    const originalText = copyButton.textContent;
+                    copyButton.textContent = 'Copied!';
+                    setTimeout(() => {
+                        copyButton.textContent = originalText;
+                    }, 2000);
+                } catch (err) {
+                    console.error('Failed to copy text: ', err);
+                }
+            });
+
+            // Setup timezone autocomplete for popup
+            popupTimezoneInput.addEventListener('focus', () => {
+                // Show full list when focused
+                const filtered = timezones;
+                updatePopupTimezoneList(filtered);
+                popupTimezoneList.style.display = 'block';
+            });
+
+            popupTimezoneInput.addEventListener('input', () => {
+                const filter = popupTimezoneInput.value.toLowerCase();
+                const filtered = timezones.filter(tz => 
+                    tz.toLowerCase().includes(filter)
+                );
+                updatePopupTimezoneList(filtered);
+            });
+
+            // Add click outside handler for popup timezone
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('#popupTimezone') && !e.target.closest('#popupTimezoneList')) {
+                    popupTimezoneList.style.display = 'none';
+                }
+            });
+
+            function updatePopupTimezoneList(filtered) {
+                popupTimezoneList.innerHTML = '';
+                filtered.forEach(tz => {
+                    const div = document.createElement('div');
+                    div.textContent = formatTimezoneWithOffset(tz);
+                    div.className = 'autocomplete-item';
+                    div.dataset.timezone = tz; // Store original timezone name
+                    div.addEventListener('click', () => {
+                        popupSelectedTimezone = tz;
+                        popupTimezoneInput.value = formatTimezoneWithOffset(tz);
+                        popupTimezoneList.style.display = 'none';
+                        updateShareableUrl();
+                    });
+                    popupTimezoneList.appendChild(div);
+                });
+                popupTimezoneList.style.display = filtered.length > 0 ? 'block' : 'none';
+            }
+
+            // Add keyboard navigation for popup timezone
+            popupTimezoneInput.addEventListener('keydown', (e) => {
+                const items = popupTimezoneList.getElementsByClassName('autocomplete-item');
+                let selectedIndex = Array.from(items).findIndex(item => item.classList.contains('selected'));
+                
+                if (items.length === 0) return;
+
+                // Remove previous selection
+                if (selectedIndex >= 0) {
+                    items[selectedIndex].classList.remove('selected');
+                }
+
+                switch(e.key) {
+                    case 'ArrowDown':
+                        selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                        if (selectedIndex === -1) selectedIndex = 0;
+                        e.preventDefault();
+                        break;
+                    case 'ArrowUp':
+                        selectedIndex = Math.max(selectedIndex - 1, 0);
+                        if (selectedIndex === -1) selectedIndex = items.length - 1;
+                        e.preventDefault();
+                        break;
+                    case 'Enter':
+                        if (selectedIndex >= 0) {
+                            const selectedTz = items[selectedIndex].dataset.timezone;
+                            popupSelectedTimezone = selectedTz;
+                            popupTimezoneInput.value = formatTimezoneWithOffset(selectedTz);
+                            popupTimezoneList.style.display = 'none';
+                            updateShareableUrl();
+                        }
+                        e.preventDefault();
+                        break;
+                    case 'Escape':
+                        popupTimezoneList.style.display = 'none';
+                        e.preventDefault();
+                        break;
+                }
+
+                if (selectedIndex >= 0 && items[selectedIndex]) {
+                    items[selectedIndex].classList.add('selected');
+                    items[selectedIndex].scrollIntoView({ block: 'nearest' });
+                }
+            });
+        }
+
+        // Update the DOMContentLoaded event listener
         document.addEventListener('DOMContentLoaded', () => {
             initializeAutocomplete();
             updateTimes();
+            setupPopup();
         });
     </script>
 </body>
