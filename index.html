@@ -27,13 +27,32 @@
             // Update OG description if there's a timestamp
             const { timestamp, timezone } = getUrlParams();
             if (timestamp && timezone) {
-                const originalMoment = moment.tz(timestamp, ['YYYY/MM/DD HH:mm', 'YYYY/MM/DD hh:mm a'], timezone);
+                const originalMoment = moment.tz(timestamp, [
+                    'YYYY/MMM/DD HH:mm',    // 2025/Jan/09 06:00
+                    'YYYY/MMM/DD hh:mm A',  // 2025/Jan/09 06:00 AM
+                    'YYYY/MM/DD HH:mm',     // Legacy format
+                    'YYYY/MM/DD hh:mm A'    // Legacy format
+                ], timezone);
+
                 if (originalMoment.isValid()) {
                     const ogDescMeta = document.querySelector('meta[property="og:description"]');
-                    if (ogDescMeta) {
-                        const formattedTime = originalMoment.format('YYYY/MMM/DD h:mm A');
-                        ogDescMeta.setAttribute('content', 
-                            `Convert ${formattedTime} ${timezone} to your timezone`);
+                    const ogTitleMeta = document.querySelector('meta[property="og:title"]');
+                    
+                    if (ogDescMeta && ogTitleMeta) {
+                        const localTimezone = moment.tz.guess();
+                        const convertedTime = originalMoment.tz(localTimezone);
+                        
+                        // Format times with timezone offsets
+                        const originalTimeStr = `${originalMoment.format('YYYY/MMM/DD h:mm A')} ${formatTimezoneWithOffset(timezone)}`;
+                        const convertedTimeStr = `${convertedTime.format('YYYY/MMM/DD h:mm A')} ${formatTimezoneWithOffset(localTimezone)}`;
+                        
+                        // Update title to show original time
+                        ogTitleMeta.setAttribute('content', 
+                            `Time Conversion: ${originalTimeStr}`);
+                        
+                        // Update description to show both times
+                        ogDescMeta.setAttribute('content',
+                            `Original: ${originalTimeStr}\nConverts to: ${convertedTimeStr}`);
                     }
                 }
             }
