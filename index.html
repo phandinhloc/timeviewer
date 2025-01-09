@@ -428,18 +428,22 @@
             const converterContent = document.getElementById('converterContent');
             
             if (!timestamp || !timezone) {
-                // Show instructions and hide converter content
                 instructions.classList.remove('hidden');
                 converterContent.classList.add('hidden');
                 return;
             }
 
-            // Hide instructions and show converter content
             instructions.classList.add('hidden');
             converterContent.classList.remove('hidden');
 
-            // Parse original time - now accepting both 24hr and 12hr input formats
-            const originalMoment = moment.tz(timestamp, ['YYYY/MM/DD HH:mm', 'YYYY/MM/DD hh:mm a'], timezone);
+            // Parse original time - add the new format with MMM month
+            const originalMoment = moment.tz(timestamp, [
+                'YYYY/MMM/DD HH:mm',    // 2025/Jan/09 06:00
+                'YYYY/MMM/DD hh:mm A',  // 2025/Jan/09 06:00 AM
+                'YYYY/MM/DD HH:mm',     // Legacy format
+                'YYYY/MM/DD hh:mm A'    // Legacy format
+            ], timezone);
+
             if (!originalMoment.isValid()) {
                 document.getElementById('originalTime').textContent = 'Invalid timestamp format';
                 return;
